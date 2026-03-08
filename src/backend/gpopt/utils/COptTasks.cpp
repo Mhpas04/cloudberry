@@ -805,6 +805,56 @@ COptTasks::GetPlanHints(CMemoryPool *mp, Query *query)
 			}
 		}
 	}
+	for (int hint_index = 0;
+		 hint_index < hintstate->num_hints[HINT_TYPE_DISTRIBUTION_METHOD]; hint_index++) {
+        GPOS_TRACE(GPOS_WSZ_LIT("Starting Distribution Hint Parsing..."));    
+        
+		DistributionMethodHint *distribution_hint =
+			(DistributionMethodHint *) hintstate->distribution_hints[hint_index];
+		StringPtrArray *aliasnames = GPOS_NEW(mp) StringPtrArray(mp);
+		for (int relname_index = 0; relname_index < distribution_hint->nrels;
+			 relname_index++)
+		{
+			aliasnames->Append(GPOS_NEW(mp) CWStringConst(
+				mp, distribution_hint->relnames[relname_index]));
+		}
+
+        GPOS_TRACE(GPOS_WSZ_LIT("Finished alias parsing"));   
+
+
+		CDistributionHint::DistributionType type = CDistributionHint::DistributionType::SENTINEL;
+		switch (distribution_hint->base.hint_keyword)
+		{
+		case HINT_KEYWORD_BROADCAST:
+		{
+			type = CDistributionHint::DistributionType::BROADCAST;
+			break;
+		}
+		case HINT_KEYWORD_REDISTRIBUTE:
+		{
+			type = CDistributionHint::DistributionType::REDISTRIBUTION;
+			break;
+		}
+		case HINT_KEYWORD_PASSTHROUGH:
+		{
+			type = CDistributionHint::DistributionType::PASSTHROUGH;
+			break;
+		}
+		default:
+		{
+			CWStringDynamic *error_message = GPOS_NEW(mp) CWStringDynamic(
+				mp, GPOS_WSZ_LIT("Unsupported plan hint: "));
+			error_message->AppendFormat(GPOS_WSZ_LIT("%s"), distribution_hint->base.keyword);
+
+			GPOS_RAISE(gpopt::ExmaGPOPT, gpopt::ExmiUnsupportedOp,
+					   error_message->GetBuffer());
+			break;
+		}
+		}
+        GPOS_TRACE(GPOS_WSZ_LIT("Selected Type... Done Parsing"));   
+		CDistributionHint *hint = GPOS_NEW(mp) CDistributionHint(mp, type, aliasnames);
+		plan_hints->AddHint(hint);
+	}
 
 	for (int hint_index = 0;
 		 hint_index < hintstate->num_hints[HINT_TYPE_JOIN_METHOD]; hint_index++)

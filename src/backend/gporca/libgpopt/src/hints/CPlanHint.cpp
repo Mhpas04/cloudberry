@@ -28,7 +28,8 @@ CPlanHint::CPlanHint(CMemoryPool *mp)
 	  m_scan_hints(GPOS_NEW(mp) ScanHintList(mp)),
 	  m_row_hints(GPOS_NEW(mp) RowHintList(mp)),
 	  m_join_hints(GPOS_NEW(mp) JoinHintList(mp)),
-	  m_join_type_hints(GPOS_NEW(mp) JoinTypeHintList(mp))
+	  m_join_type_hints(GPOS_NEW(mp) JoinTypeHintList(mp)),
+      m_dist_hints(GPOS_NEW(mp) DistributionHintList(mp))
 {
 }
 
@@ -38,6 +39,7 @@ CPlanHint::~CPlanHint()
 	m_row_hints->Release();
 	m_join_hints->Release();
 	m_join_type_hints->Release();
+	m_dist_hints->Release();
 }
 
 void
@@ -62,6 +64,12 @@ void
 CPlanHint::AddHint(CJoinTypeHint *hint)
 {
 	m_join_type_hints->Append(hint);
+}
+
+void
+CPlanHint::AddHint(CDistributionHint *hint)
+{
+	m_dist_hints->Append(hint);
 }
 
 CScanHint *
@@ -377,6 +385,29 @@ CPlanHint::GetJoinHint(CExpression *pexpr)
 			return hint;
 		}
 	}
+	pexprAliases->Release();
+	return nullptr;
+}
+
+CDistributionHint *
+CPlanHint::GetDistributionHint(CTableDescriptorHashSet *tables)
+{
+	StringPtrArray *pexprAliases =
+		CHintUtils::GetAliasesFromTableDescriptors(m_mp, tables);
+
+	pexprAliases->Sort(CWStringBase::Compare);
+
+	for (ULONG ul = 0; ul < m_dist_hints->Size(); ul++)
+	{
+		CDistributionHint *hint = (*m_dist_hints)[ul];
+		const StringPtrArray *hintAliases = hint->GetAliasNames();
+		if (pexprAliases->Equals(hintAliases))
+		{
+			pexprAliases->Release();
+			return hint;
+		}
+	}
+
 	pexprAliases->Release();
 	return nullptr;
 }

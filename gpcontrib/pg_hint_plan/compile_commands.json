@@ -1,0 +1,43 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Wmissing-prototypes",
+      "-Wpointer-arith",
+      "-Werror=vla",
+      "-Wendif-labels",
+      "-Wmissing-format-attribute",
+      "-Wimplicit-fallthrough=3",
+      "-Wcast-function-type",
+      "-Wformat-security",
+      "-fno-strict-aliasing",
+      "-fwrapv",
+      "-fexcess-precision=standard",
+      "-Wno-unused-but-set-variable",
+      "-Werror=implicit-fallthrough=3",
+      "-Wno-format-truncation",
+      "-Wno-stringop-truncation",
+      "-g",
+      "-O3",
+      "-fPIC",
+      "-DUSE_INTERNAL_FTS=1",
+      "-Werror=uninitialized",
+      "-Werror=implicit-function-declaration",
+      "-Werror",
+      "-fPIC",
+      "-I../../src/pl/plpgsql/src/",
+      "-I.",
+      "-I.",
+      "-I../../src/include",
+      "-D_GNU_SOURCE",
+      "-c",
+      "-o",
+      "pg_hint_plan.o",
+      "pg_hint_plan.c"
+    ],
+    "directory": "/home/gpadmin/cloudberry/gpcontrib/pg_hint_plan",
+    "file": "/home/gpadmin/cloudberry/gpcontrib/pg_hint_plan/pg_hint_plan.c",
+    "output": "/home/gpadmin/cloudberry/gpcontrib/pg_hint_plan/pg_hint_plan.o"
+  }
+]

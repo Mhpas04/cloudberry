@@ -100,6 +100,10 @@ PG_MODULE_MAGIC;
 #define HINT_SET				"Set"
 #define HINT_ROWS				"Rows"
 
+#define HINT_BROADCAST          "Broadcast"
+#define HINT_REPARTITION        "Repartition"
+#define HINT_PASSTHROUGH        "Scattered"
+
 #define HINT_ARRAY_DEFAULT_INITSIZE 8
 
 #define hint_ereport(str, detail) hint_parse_ereport(str, detail)
@@ -166,6 +170,10 @@ typedef enum HintKeyword
 	HINT_KEYWORD_ROWS,
 	HINT_KEYWORD_PARALLEL,
 
+	HINT_KEYWORD_BROADCAST,
+	HINT_KEYWORD_REDISTRIBUTE,
+	HINT_KEYWORD_PASSTHROUGH,
+
 	HINT_KEYWORD_UNRECOGNIZED
 } HintKeyword;
 
@@ -191,7 +199,7 @@ typedef const char *(*HintParseFunction) (Hint *hint, HintState *hstate,
 										  Query *parse, const char *str);
 
 /* hint types */
-#define NUM_HINT_TYPE	6
+#define NUM_HINT_TYPE	7
 typedef enum HintType
 {
 	HINT_TYPE_SCAN_METHOD,
@@ -199,7 +207,8 @@ typedef enum HintType
 	HINT_TYPE_LEADING,
 	HINT_TYPE_SET,
 	HINT_TYPE_ROWS,
-	HINT_TYPE_PARALLEL
+	HINT_TYPE_PARALLEL,
+    HINT_TYPE_DISTRIBUTION_METHOD
 } HintType;
 
 typedef enum HintTypeBitmap
@@ -214,7 +223,8 @@ static const char *HintTypeName[] = {
 	"leading",
 	"set",
 	"rows",
-	"parallel"
+	"parallel",
+    "distribution"
 };
 
 /* hint status */
@@ -291,6 +301,16 @@ typedef struct JoinMethodHint
 	Relids			joinrelids;
 	Relids			inner_joinrelids;
 } JoinMethodHint;
+
+typedef struct DistributionMethodHint
+{
+    Hint base;
+    int nrels;
+    int inner_nrels;
+    char **relnames;
+    Relids joinrelids;
+    Relids inner_joinrelids;
+} DistributionMethodHint;
 
 /* join order hints */
 typedef struct OuterInnerRels
@@ -380,6 +400,7 @@ struct HintState
 	List		   *parent_index_infos; /* list of parent table's index */
 
 	JoinMethodHint **join_hints;		/* parsed join hints */
+    DistributionMethodHint **distribution_hints;
 	int				init_join_mask;		/* initial value join parameter */
 	List		  **join_hint_level;
 	LeadingHint	  **leading_hint;		/* parsed Leading hints */
@@ -485,6 +506,15 @@ static void ParallelHintDelete(ParallelHint *hint);
 static void ParallelHintDesc(ParallelHint *hint, StringInfo buf, bool nolf);
 static int ParallelHintCmp(const ParallelHint *a, const ParallelHint *b);
 static const char *ParallelHintParse(ParallelHint *hint, HintState *hstate,
+									 Query *parse, const char *str);
+
+/* Parallel hint callbacks */
+static Hint *DistributionHintCreate(const char *hint_str, const char *keyword,
+								HintKeyword hint_keyword);
+static void DistributionHintDelete(DistributionMethodHint *hint);
+static void DistributionHintDesc(DistributionMethodHint *hint, StringInfo buf, bool nolf);
+static int DistributionHintCmp(const DistributionMethodHint *a, const DistributionMethodHint *b);
+static const char *DistributionHintParse(DistributionMethodHint *hint, HintState *hstate,
 									 Query *parse, const char *str);
 
 static void quote_value(StringInfo buf, const char *value);
@@ -624,6 +654,10 @@ static const HintParser parsers[] = {
 	{HINT_SET, SetHintCreate, HINT_KEYWORD_SET},
 	{HINT_ROWS, RowsHintCreate, HINT_KEYWORD_ROWS},
 	{HINT_PARALLEL, ParallelHintCreate, HINT_KEYWORD_PARALLEL},
+
+	{HINT_BROADCAST, DistributionHintCreate, HINT_KEYWORD_BROADCAST},
+    {HINT_REPARTITION, DistributionHintCreate, HINT_KEYWORD_REDISTRIBUTE},
+    {HINT_PASSTHROUGH, DistributionHintCreate, HINT_KEYWORD_PASSTHROUGH},
 
 	{NULL, NULL, HINT_KEYWORD_UNRECOGNIZED}
 };
@@ -822,6 +856,51 @@ ScanMethodHintDelete(ScanMethodHint *hint)
 		pfree(hint->relname);
 	list_free_deep(hint->indexnames);
 	pfree(hint);
+}
+
+static Hint *
+DistributionHintCreate(const char *hint_str, const char *keyword,
+					 HintKeyword hint_keyword)
+{
+	DistributionMethodHint *hint;
+
+	hint = palloc(sizeof(DistributionMethodHint));
+	hint->base.hint_str = hint_str;
+	hint->base.keyword = keyword;
+	hint->base.hint_keyword = hint_keyword;
+	hint->base.type = HINT_TYPE_DISTRIBUTION_METHOD;
+	hint->base.state = HINT_STATE_NOTUSED;
+	hint->base.delete_func = (HintDeleteFunction) DistributionHintDelete;
+	hint->base.desc_func = (HintDescFunction) DistributionHintDesc;
+	hint->base.cmp_func = (HintCmpFunction) DistributionHintCmp;
+	hint->base.parse_func = (HintParseFunction) DistributionHintParse;
+	hint->nrels = 0;
+	hint->inner_nrels = 0;
+	hint->relnames = NULL;
+	hint->joinrelids = NULL;
+	hint->inner_joinrelids = NULL;
+
+	return (Hint *) hint;
+}
+
+static void
+DistributionHintDelete(DistributionMethodHint *hint)
+{
+	if (!hint)
+		return;
+
+	if (hint->relnames)
+	{
+		int	i;
+
+		for (i = 0; i < hint->nrels; i++)
+			pfree(hint->relnames[i]);
+		pfree(hint->relnames);
+	}
+
+	bms_free(hint->joinrelids);
+	bms_free(hint->inner_joinrelids);
+	pfree(hint); 
 }
 
 static Hint *
@@ -1049,6 +1128,7 @@ HintStateCreate(void)
 	hstate->parent_parallel_hint = NULL;
 	hstate->parent_index_infos = NIL;
 	hstate->join_hints = NULL;
+    hstate->distribution_hints = NULL;
 	hstate->init_join_mask = 0;
 	hstate->join_hint_level = NULL;
 	hstate->leading_hint = NULL;
@@ -1138,6 +1218,26 @@ ScanMethodHintDesc(ScanMethodHint *hint, StringInfo buf, bool nolf)
 }
 
 static void
+DistributionHintDesc(DistributionMethodHint *hint, StringInfo buf, bool nolf)
+{
+	int	i;
+
+	appendStringInfo(buf, "%s(", hint->base.keyword);
+	if (hint->relnames != NULL)
+	{
+		quote_value(buf, hint->relnames[0]);
+		for (i = 1; i < hint->nrels; i++)
+		{
+			appendStringInfoCharMacro(buf, ' ');
+			quote_value(buf, hint->relnames[i]);
+		}
+	}
+	appendStringInfoString(buf, ")");
+	if (!nolf)
+		appendStringInfoChar(buf, '\n');
+}
+
+static void
 JoinMethodHintDesc(JoinMethodHint *hint, StringInfo buf, bool nolf)
 {
 	int	i;
@@ -1156,6 +1256,8 @@ JoinMethodHintDesc(JoinMethodHint *hint, StringInfo buf, bool nolf)
 	if (!nolf)
 		appendStringInfoChar(buf, '\n');
 }
+
+
 
 static void
 OuterInnerDesc(OuterInnerRels *outer_inner, StringInfo buf)
@@ -1378,6 +1480,24 @@ static int
 ScanMethodHintCmp(const ScanMethodHint *a, const ScanMethodHint *b)
 {
 	return RelnameCmp(&a->relname, &b->relname);
+}
+
+static int
+DistributionHintCmp(const DistributionMethodHint *a, const DistributionMethodHint *b)
+{
+	int	i;
+
+	if (a->nrels != b->nrels)
+		return a->nrels - b->nrels;
+
+	for (i = 0; i < a->nrels; i++)
+	{
+		int	result;
+		if ((result = RelnameCmp(&a->relnames[i], &b->relnames[i])) != 0)
+			return result;
+	}
+
+	return 0;
 }
 
 static int
@@ -2152,6 +2272,8 @@ create_hintstate(Query *parse, const char *hints)
 		hstate->num_hints[HINT_TYPE_SET]);
 	hstate->parallel_hints = (ParallelHint **) (hstate->rows_hints +
 		hstate->num_hints[HINT_TYPE_ROWS]);
+    hstate->distribution_hints = (DistributionMethodHint **) (hstate->parallel_hints +
+		hstate->num_hints[HINT_TYPE_PARALLEL]);
 
 	return hstate;
 }
@@ -2246,6 +2368,43 @@ ScanMethodHintParse(ScanMethodHint *hint, HintState *hstate, Query *parse,
 			return NULL;
 			break;
 	}
+
+	return str;
+}
+
+static const char *
+DistributionHintParse(DistributionMethodHint *hint, HintState *hstate, Query *parse,
+					const char *str)
+{
+	HintKeyword		hint_keyword = hint->base.hint_keyword;
+	List		   *name_list = NIL;
+
+	if ((str = parse_parentheses(str, &name_list, hint_keyword)) == NULL)
+		return NULL;
+
+	hint->nrels = list_length(name_list);
+
+	if (hint->nrels > 0)
+	{
+		ListCell   *l;
+		int			i = 0;
+
+		/*
+		 * Transform relation names from list to array to sort them with qsort
+		 * after.
+		 */
+		hint->relnames = palloc(sizeof(char *) * hint->nrels);
+		foreach (l, name_list)
+		{
+			hint->relnames[i] = lfirst(l);
+			i++;
+		}
+	}
+
+	list_free(name_list);
+
+	/* Sort hints in alphabetical order of relation names. */
+	qsort(hint->relnames, hint->nrels, sizeof(char *), RelnameCmp);
 
 	return str;
 }

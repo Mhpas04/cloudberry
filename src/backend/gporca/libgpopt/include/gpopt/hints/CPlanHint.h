@@ -19,12 +19,12 @@
 #include "gpopt/hints/CJoinTypeHint.h"
 #include "gpopt/hints/CRowHint.h"
 #include "gpopt/hints/CScanHint.h"
+#include "gpopt/hints/CDistributionHint.h"
 #include "gpopt/hints/IHint.h"
 #include "gpopt/metadata/CTableDescriptor.h"
 #include "gpopt/operators/CExpression.h"
 #include "gpopt/operators/COperator.h"
 #include "naucrates/dxl/xml/CXMLSerializer.h"
-
 namespace gpopt
 {
 //---------------------------------------------------------------------------
@@ -48,6 +48,9 @@ private:
 	// List of all join type hints
 	JoinTypeHintList *m_join_type_hints{nullptr};
 
+	// List of all distribution hints
+	DistributionHintList *m_dist_hints{nullptr};
+
 public:
 	CPlanHint(CMemoryPool *mp);
 
@@ -65,6 +68,9 @@ public:
 	// Add a join type hint
 	void AddHint(CJoinTypeHint *hint);
 
+	// Add a join type hint
+	void AddHint(CDistributionHint *hint);
+
 	// Get a scan hint that matches a name (table or alias)
 	CScanHint *GetScanHint(const char *name);
 	CScanHint *GetScanHint(const CWStringBase *name);
@@ -74,6 +80,9 @@ public:
 
 	// Get a join hint that covers an expression
 	CJoinHint *GetJoinHint(CExpression *pexpr);
+
+	// Get a join hint that covers tables
+	CDistributionHint *GetDistributionHint(CTableDescriptorHashSet *tables);
 
 	// Get a join type hint that covers an expression
 	CJoinTypeHint *GetJoinTypeHint(StringPtrArray *aliases);

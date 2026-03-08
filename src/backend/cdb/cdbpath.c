@@ -197,7 +197,7 @@ cdbpath_create_motion_path(PlannerInfo *root,
 						   CdbPathLocus locus)
 {
 	CdbMotionPath *pathnode;
-
+    
 	Assert(cdbpathlocus_is_valid(locus) &&
 		   cdbpathlocus_is_valid(subpath->locus));
 

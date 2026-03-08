@@ -216,6 +216,32 @@ CPhysicalAgg::PdsRequiredAgg(CMemoryPool *mp, CExpressionHandle &exprhdl,
 {
 	GPOS_ASSERT(0 == child_index);
 
+	COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
+	CPlanHint *planhint = poctxt->GetOptimizerConfig()->GetPlanHint();
+
+	if (planhint != nullptr)
+	{
+		CTableDescriptorHashSet *tables = exprhdl.DeriveTableDescriptor(child_index);
+		CDistributionHint* hint = planhint->GetDistributionHint(tables);
+		if (hint != nullptr)
+		{
+			switch (hint->GetDistributionType())
+			{
+				case CDistributionHint::BROADCAST:
+				case CDistributionHint::REDISTRIBUTION:
+				case CDistributionHint::SENTINEL:
+				{
+					break;
+				}
+				case CDistributionHint::PASSTHROUGH:
+				{
+					CDistributionSpec *pds = GPOS_NEW(mp) CDistributionSpecAny(exprhdl.Pop()->Eopid());
+					return pds;
+				}
+			}
+		}
+	}
+
 	if (FGlobal())
 	{
 		return PdsRequiredGlobalAgg(mp, exprhdl, pdsInput, child_index,

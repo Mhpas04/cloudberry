@@ -15,6 +15,7 @@
 
 #include "gpopt/base/CCastUtils.h"
 #include "gpopt/base/CColRefSetIter.h"
+#include "gpopt/base/CDistributionSpecAny.h"
 #include "gpopt/base/CDistributionSpecHashed.h"
 #include "gpopt/base/CDistributionSpecNonReplicated.h"
 #include "gpopt/base/CDistributionSpecNonSingleton.h"
@@ -26,6 +27,8 @@
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarIdent.h"
+#include "gpopt/optimizer/COptimizerConfig.h"
+
 
 using namespace gpopt;
 
@@ -798,8 +801,8 @@ CPhysicalHashJoin::PdsRequiredReplicate(
 	}
 
 	// otherwise, require second child to deliver non-singleton distribution
-	GPOS_ASSERT(CDistributionSpec::EdtStrictReplicated == pdsInner->Edt() ||
-				CDistributionSpec::EdtTaintedReplicated == pdsInner->Edt());
+	/*GPOS_ASSERT(CDistributionSpec::EdtStrictReplicated == pdsInner->Edt() ||
+				CDistributionSpec::EdtTaintedReplicated == pdsInner->Edt());*/
 	return GPOS_NEW(mp) CDistributionSpecNonSingleton();
 }
 
@@ -1013,9 +1016,59 @@ CPhysicalHashJoin::Ped(CMemoryPool *mp, CExpressionHandle &exprhdl,
 								  CDistributionSpec::EdtStrictReplicated),
 							  dmatch);
 	}
-
 	const ULONG ulHashDistributeRequests =
 		m_pdrgpdsRedistributeRequests->Size();
+
+
+    COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
+    CPlanHint *planhint = poctxt->GetOptimizerConfig()->GetPlanHint();
+
+	if (planhint != nullptr)
+	{
+		CTableDescriptorHashSet *tables = exprhdl.DeriveTableDescriptor(child_index);
+		CDistributionHint* hint = planhint->GetDistributionHint(tables);
+		if (hint != nullptr)
+		{
+			switch (hint->GetDistributionType())
+			{
+				case CDistributionHint::BROADCAST:
+				{
+
+						CDistributionSpec *pds = GPOS_NEW(mp) CDistributionSpecReplicated(CDistributionSpec::EdtStrictReplicated);
+						return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
+
+				}
+				case CDistributionHint::REDISTRIBUTION:
+				{
+					//Yeah just get it to work at this point. We clamp the value here so we dont go out of bounds when choosing the redistribution method to cost
+					ulOptReq = std::min(ulOptReq, ulHashDistributeRequests - 1);
+					CDistributionSpec *pds = PdsRequiredRedistribute(
+						mp, exprhdl, pdsInput, child_index, pdrgpdpCtxt, ulOptReq);
+					return  GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
+				}
+				case CDistributionHint::PASSTHROUGH:
+				{
+					CDistributionSpec *pds = GPOS_NEW(mp) CDistributionSpecAny(exprhdl.Pop()->Eopid());
+					return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
+				}
+				case CDistributionHint::SENTINEL:
+				{
+					break;
+				}
+			}
+		}else if(child_index == 0 && ulOptReq == ulHashDistributeRequests + 2){
+			//Check if inner node has an applied hint
+			tables = exprhdl.DeriveTableDescriptor(child_index+1);
+			hint = planhint->GetDistributionHint(tables);
+
+			if (hint != nullptr) {
+				//Cant do Singelton - Any so just pass through instead
+				CDistributionSpec *pds = PdsPassThru(mp, exprhdl, pdsInput, child_index);
+				return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
+			}
+		}
+	}
+
 	if (ulOptReq < ulHashDistributeRequests)
 	{
 		// requests 1 .. N are (redistribute, redistribute)
