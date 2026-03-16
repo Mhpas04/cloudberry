@@ -227,7 +227,9 @@ CPhysicalAgg::PdsRequiredAgg(CMemoryPool *mp, CExpressionHandle &exprhdl,
 		{
 			switch (hint->GetDistributionType())
 			{
-				case CDistributionHint::BROADCAST:
+				case CDistributionHint::BROADCAST: {
+					return GPOS_NEW(mp) CDistributionSpecReplicated(CDistributionSpec::EdtStrictReplicated);
+				}
 				case CDistributionHint::REDISTRIBUTION:
 				case CDistributionHint::SENTINEL:
 				{
@@ -235,6 +237,7 @@ CPhysicalAgg::PdsRequiredAgg(CMemoryPool *mp, CExpressionHandle &exprhdl,
 				}
 				case CDistributionHint::PASSTHROUGH:
 				{
+					//TODO: Makes no sense and causes wrong results deal with it later
 					CDistributionSpec *pds = GPOS_NEW(mp) CDistributionSpecAny(exprhdl.Pop()->Eopid());
 					return pds;
 				}

@@ -1,0 +1,21 @@
+# Ignore compiled object files and binaries
+*.o
+*.so
+*.a
+*.dylib
+**/*.o
+**/*.so
+**/*.a
+**/*.dylib
+
+
+# Ignore configuration and build caches
+config.log
+config.status
+autom4te.cache/
+GNUmakefile
+
+**/CMakeScripts/
+**/build/
+!devops/build/
+**/cmake-build-debug/

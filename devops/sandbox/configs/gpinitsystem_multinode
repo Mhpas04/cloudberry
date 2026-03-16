@@ -129,9 +129,9 @@ DATABASE_NAME=gpadmin
 
 # Mirror configuration
 
-MIRROR_PORT_BASE=50000
+# MIRROR_PORT_BASE=50000
 
-declare -a MIRROR_DATA_DIRECTORY=(/data0/database/mirror \
+# declare -a MIRROR_DATA_DIRECTORY=(/data0/database/mirror \
                                   /data0/database/mirror)
 
 # REPLICATION_PORT_BASE=41000
