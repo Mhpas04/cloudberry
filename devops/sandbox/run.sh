@@ -155,7 +155,8 @@ fi
 
 # Deploy container(s)
 if [ "${MULTINODE}" == "true" ]; then
-    docker compose -f docker-compose-$OS_VERSION.yml up --detach
+    COMPOSEFILE="${SANDBOX_DIR}/docker-compose-${OS_VERSION}.yml"
+    docker compose -f ${COMPOSEFILE} up --detach
 else
     docker run --interactive \
            --tty \

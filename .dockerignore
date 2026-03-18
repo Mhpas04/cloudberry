@@ -1,12 +1,4 @@
 # Ignore compiled object files and binaries
-*.o
-*.so
-*.a
-*.dylib
-**/*.o
-**/*.so
-**/*.a
-**/*.dylib
 
 
 # Ignore configuration and build caches
@@ -19,3 +11,5 @@ GNUmakefile
 **/build/
 !devops/build/
 **/cmake-build-debug/
+**/.cache/
+**/.clangd/

@@ -143,7 +143,11 @@ fi
 if [ "$HOSTNAME" == "cdw" ]; then
     ## Allow any host access the Cloudberry Cluster
     echo 'host all all 0.0.0.0/0 trust' >> /data0/database/coordinator/gpseg-1/pg_hba.conf
-    gpstop -u
+    export USER=gpadmin
+    gpconfig -c shared_preload_libraries -v 'pg_hint_plan'
+    gpstop -ar
+
+    psql -d template1 -c "CREATE EXTENSION IF NOT EXISTS pg_hint_plan;"
 
     cat <<-'EOF'
 
