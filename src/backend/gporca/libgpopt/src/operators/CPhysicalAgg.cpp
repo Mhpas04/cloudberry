@@ -216,7 +216,8 @@ CPhysicalAgg::PdsRequiredAgg(CMemoryPool *mp, CExpressionHandle &exprhdl,
 {
 	GPOS_ASSERT(0 == child_index);
 
-	COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
+	/*COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
+    // We dont benchmark plans with aggregations any more
 	CPlanHint *planhint = poctxt->GetOptimizerConfig()->GetPlanHint();
 
 	if (planhint != nullptr)
@@ -243,7 +244,7 @@ CPhysicalAgg::PdsRequiredAgg(CMemoryPool *mp, CExpressionHandle &exprhdl,
 				}
 			}
 		}
-	}
+	}*/
 
 	if (FGlobal())
 	{

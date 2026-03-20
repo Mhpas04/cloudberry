@@ -835,9 +835,9 @@ COptTasks::GetPlanHints(CMemoryPool *mp, Query *query)
 			type = CDistributionHint::DistributionType::REDISTRIBUTION;
 			break;
 		}
-		case HINT_KEYWORD_PASSTHROUGH:
+		case HINT_KEYWORD_SINGLENODE:
 		{
-			type = CDistributionHint::DistributionType::PASSTHROUGH;
+			type = CDistributionHint::DistributionType::SINGLENODE;
 			break;
 		}
 		default:

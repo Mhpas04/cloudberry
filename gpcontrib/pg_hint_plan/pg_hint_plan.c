@@ -102,7 +102,7 @@ PG_MODULE_MAGIC;
 
 #define HINT_BROADCAST          "Broadcast"
 #define HINT_REPARTITION        "Repartition"
-#define HINT_PASSTHROUGH        "Scattered"
+#define HINT_SINGLENODE         "Gather"
 
 #define HINT_ARRAY_DEFAULT_INITSIZE 8
 
@@ -172,7 +172,7 @@ typedef enum HintKeyword
 
 	HINT_KEYWORD_BROADCAST,
 	HINT_KEYWORD_REDISTRIBUTE,
-	HINT_KEYWORD_PASSTHROUGH,
+	HINT_KEYWORD_SINGLENODE,
 
 	HINT_KEYWORD_UNRECOGNIZED
 } HintKeyword;
@@ -657,7 +657,7 @@ static const HintParser parsers[] = {
 
 	{HINT_BROADCAST, DistributionHintCreate, HINT_KEYWORD_BROADCAST},
     {HINT_REPARTITION, DistributionHintCreate, HINT_KEYWORD_REDISTRIBUTE},
-    {HINT_PASSTHROUGH, DistributionHintCreate, HINT_KEYWORD_PASSTHROUGH},
+    {HINT_SINGLENODE, DistributionHintCreate, HINT_KEYWORD_SINGLENODE},
 
 	{NULL, NULL, HINT_KEYWORD_UNRECOGNIZED}
 };
@@ -778,7 +778,7 @@ _PG_init(void)
 	make_join_rel_hook = pg_hint_plan_make_join_rel;
 	prev_add_paths_to_joinrel_hook = add_paths_to_joinrel_hook;
 	add_paths_to_joinrel_hook = pg_hint_plan_add_paths_to_joinrel;
-	
+
 #ifdef USE_ORCA
 	prev_plan_hint_hook = plan_hint_hook;
 	plan_hint_hook = external_plan_hint_hook;
@@ -900,7 +900,7 @@ DistributionHintDelete(DistributionMethodHint *hint)
 
 	bms_free(hint->joinrelids);
 	bms_free(hint->inner_joinrelids);
-	pfree(hint); 
+	pfree(hint);
 }
 
 static Hint *
@@ -4935,7 +4935,7 @@ pg_hint_plan_add_paths_to_joinrel(PlannerInfo *root,
 	JoinMethodHint *join_hint;
 	int				save_nestlevel;
 
-	// no hint 
+	// no hint
 	if (!current_hint_state) {
 		if(prev_add_paths_to_joinrel_hook) {
 			prev_add_paths_to_joinrel_hook(root, joinrel, outerrel, innerrel, jointype,

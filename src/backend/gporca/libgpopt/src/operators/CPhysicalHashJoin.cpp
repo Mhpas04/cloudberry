@@ -1046,26 +1046,28 @@ CPhysicalHashJoin::Ped(CMemoryPool *mp, CExpressionHandle &exprhdl,
 						mp, exprhdl, pdsInput, child_index, pdrgpdpCtxt, ulOptReq);
 					return  GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
 				}
-				case CDistributionHint::PASSTHROUGH:
+				case CDistributionHint::SINGLENODE:
 				{
-					CDistributionSpec *pds = GPOS_NEW(mp) CDistributionSpecAny(exprhdl.Pop()->Eopid());
-					return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
+					CDistributionSpec *pds = GPOS_NEW(mp) CDistributionSpecSingleton(CDistributionSpecSingleton::EstSegment);
+                    return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
 				}
 				case CDistributionHint::SENTINEL:
 				{
 					break;
 				}
 			}
-		}else if(child_index == 0 && ulOptReq == ulHashDistributeRequests + 2){
-			//Check if inner node has an applied hint
-			tables = exprhdl.DeriveTableDescriptor(child_index+1);
-			hint = planhint->GetDistributionHint(tables);
+		}else if(child_index == 0){
+            if(ulOptReq == ulHashDistributeRequests + 2){
+                //Check if inner node has an applied hint
+                tables = exprhdl.DeriveTableDescriptor(child_index+1);
+                hint = planhint->GetDistributionHint(tables);
 
-			if (hint != nullptr) {
-				//Cant do Singelton - Any so just pass through instead
-				CDistributionSpec *pds = PdsPassThru(mp, exprhdl, pdsInput, child_index);
-				return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
-			}
+                if (hint != nullptr && hint->GetDistributionType() != CDistributionHint::SINGLENODE) {
+                    //Cant do Singelton - Any so just pass through instead
+                    CDistributionSpec *pds = PdsPassThru(mp, exprhdl, pdsInput, child_index);
+                    return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
+                }
+            } 
 		}
 	}
 
