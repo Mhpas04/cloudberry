@@ -14,6 +14,7 @@
 //---------------------------------------------------------------------------
 
 #include "gpopt/utils/COptTasks.h"
+#include "gpopt/hints/CDistributionHint.h"
 
 extern "C" {
 #include "cdb/cdbvars.h"
@@ -840,6 +841,9 @@ COptTasks::GetPlanHints(CMemoryPool *mp, Query *query)
 			type = CDistributionHint::DistributionType::SINGLENODE;
 			break;
 		}
+        case HINT_KEYWORD_PASSTHROUGH:{
+            type = CDistributionHint::DistributionType::PASSTHROUGH;
+        }
 		default:
 		{
 			CWStringDynamic *error_message = GPOS_NEW(mp) CWStringDynamic(

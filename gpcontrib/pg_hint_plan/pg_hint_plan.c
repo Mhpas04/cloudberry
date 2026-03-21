@@ -103,6 +103,7 @@ PG_MODULE_MAGIC;
 #define HINT_BROADCAST          "Broadcast"
 #define HINT_REPARTITION        "Repartition"
 #define HINT_SINGLENODE         "Gather"
+#define HINT_PASSTHROUGH        "KeepDistribution"
 
 #define HINT_ARRAY_DEFAULT_INITSIZE 8
 
@@ -173,6 +174,7 @@ typedef enum HintKeyword
 	HINT_KEYWORD_BROADCAST,
 	HINT_KEYWORD_REDISTRIBUTE,
 	HINT_KEYWORD_SINGLENODE,
+	HINT_KEYWORD_PASSTHROUGH,
 
 	HINT_KEYWORD_UNRECOGNIZED
 } HintKeyword;
@@ -658,6 +660,7 @@ static const HintParser parsers[] = {
 	{HINT_BROADCAST, DistributionHintCreate, HINT_KEYWORD_BROADCAST},
     {HINT_REPARTITION, DistributionHintCreate, HINT_KEYWORD_REDISTRIBUTE},
     {HINT_SINGLENODE, DistributionHintCreate, HINT_KEYWORD_SINGLENODE},
+	{HINT_PASSTHROUGH, DistributionHintCreate, HINT_KEYWORD_PASSTHROUGH},
 
 	{NULL, NULL, HINT_KEYWORD_UNRECOGNIZED}
 };

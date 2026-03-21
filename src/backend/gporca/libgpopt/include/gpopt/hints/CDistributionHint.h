@@ -20,6 +20,7 @@ public:
 		BROADCAST,
 		REDISTRIBUTION,
 		SINGLENODE,
+        PASSTHROUGH,
 		SENTINEL
 	};
 private:

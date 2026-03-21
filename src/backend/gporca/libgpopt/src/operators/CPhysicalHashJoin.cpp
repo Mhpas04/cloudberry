@@ -1051,6 +1051,11 @@ CPhysicalHashJoin::Ped(CMemoryPool *mp, CExpressionHandle &exprhdl,
 					CDistributionSpec *pds = GPOS_NEW(mp) CDistributionSpecSingleton(CDistributionSpecSingleton::EstSegment);
                     return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
 				}
+                case CDistributionHint::PASSTHROUGH:
+				{
+                    CDistributionSpec *pds = PdsPassThru(mp, exprhdl, pdsInput, child_index);
+					return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
+				}
 				case CDistributionHint::SENTINEL:
 				{
 					break;
