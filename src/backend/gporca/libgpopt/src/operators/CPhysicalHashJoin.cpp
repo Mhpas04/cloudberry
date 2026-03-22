@@ -29,6 +29,8 @@
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/optimizer/COptimizerConfig.h"
 
+#include <algorithm>
+
 
 using namespace gpopt;
 
@@ -1020,40 +1022,95 @@ CPhysicalHashJoin::Ped(CMemoryPool *mp, CExpressionHandle &exprhdl,
 		m_pdrgpdsRedistributeRequests->Size();
 
 
-    COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
-    CPlanHint *planhint = poctxt->GetOptimizerConfig()->GetPlanHint();
+	COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
+	CPlanHint *planhint = poctxt->GetOptimizerConfig()->GetPlanHint();
 
 	if (planhint != nullptr)
 	{
-		CTableDescriptorHashSet *tables = exprhdl.DeriveTableDescriptor(child_index);
-		CDistributionHint* hint = planhint->GetDistributionHint(tables);
+		CTableDescriptorHashSet *tables =
+			exprhdl.DeriveTableDescriptor(child_index);
+		CDistributionHint *hint = planhint->GetDistributionHint(tables);
 		if (hint != nullptr)
 		{
 			switch (hint->GetDistributionType())
 			{
 				case CDistributionHint::BROADCAST:
 				{
-
-						CDistributionSpec *pds = GPOS_NEW(mp) CDistributionSpecReplicated(CDistributionSpec::EdtStrictReplicated);
-						return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
-
+					CDistributionSpec *pds =
+						GPOS_NEW(mp) CDistributionSpecReplicated(
+							CDistributionSpec::EdtStrictReplicated);
+					return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
 				}
 				case CDistributionHint::REDISTRIBUTION:
 				{
 					//Yeah just get it to work at this point. We clamp the value here so we dont go out of bounds when choosing the redistribution method to cost
 					ulOptReq = std::min(ulOptReq, ulHashDistributeRequests - 1);
 					CDistributionSpec *pds = PdsRequiredRedistribute(
-						mp, exprhdl, pdsInput, child_index, pdrgpdpCtxt, ulOptReq);
-					return  GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
+						mp, exprhdl, pdsInput, child_index, pdrgpdpCtxt,
+						ulOptReq);
+
+					CDistributionSpecHashed *pdsHashed =
+						CDistributionSpecHashed::PdsConvert(pds);
+					CExpressionArray *pdrgpexprOriginal =
+						pdsHashed->Pdrgpexpr();
+
+					if (pdrgpexprOriginal->Size() > 1)
+					{
+						CExpressionArray *pdrgpexprClean =
+							GPOS_NEW(mp) CExpressionArray(mp);
+						pdsHashed->ComputeEquivHashExprs(mp, exprhdl);
+						CExpressionArrays *exprEquivs =
+							pdsHashed->HashSpecEquivExprs();
+
+						struct KeyStrength
+						{
+							CExpression *pexpr;
+							CExpressionArray *pEquivs;
+							ULONG size;
+						};
+
+						std::vector<KeyStrength> keys;
+						for (ULONG ul = 0; ul < pdrgpexprOriginal->Size(); ++ul)
+						{
+							keys.push_back({(*pdrgpexprOriginal)[ul],
+											(*exprEquivs)[ul],
+											(*exprEquivs)[ul]->Size()});
+						}
+
+						// Sort descending: Largest equivalence classes first
+						std::sort(
+							keys.begin(), keys.end(),
+							[](const KeyStrength &a, const KeyStrength &b) {
+								return a.size > b.size;
+							});
+
+						// For JODA simplification purposes we only pick the strongest equivalence class since joda supports only one key currently
+						// You would propably want to change the Redistribute hint so you can specificy columns directly from JODA if ever multiple columns are added
+						keys[0].pexpr->AddRef();
+    					pdrgpexprClean->Append(keys[0].pexpr);
+
+						CDistributionSpecHashed *pdsClean =
+							GPOS_NEW(mp) CDistributionSpecHashed(
+								pdrgpexprClean, pdsHashed->FNullsColocated());
+
+						pds->Release();
+
+						return GPOS_NEW(mp) CEnfdDistribution(pdsClean, dmatch);
+					}
+
+					return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
 				}
 				case CDistributionHint::SINGLENODE:
 				{
-					CDistributionSpec *pds = GPOS_NEW(mp) CDistributionSpecSingleton(CDistributionSpecSingleton::EstSegment);
-                    return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
+					CDistributionSpec *pds =
+						GPOS_NEW(mp) CDistributionSpecSingleton(
+							CDistributionSpecSingleton::EstSegment);
+					return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
 				}
-                case CDistributionHint::PASSTHROUGH:
+				case CDistributionHint::PASSTHROUGH:
 				{
-                    CDistributionSpec *pds = GPOS_NEW(mp) CDistributionSpecAny(this->Eopid());
+					CDistributionSpec *pds =
+						GPOS_NEW(mp) CDistributionSpecAny(this->Eopid());
 					return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
 				}
 				case CDistributionHint::SENTINEL:
@@ -1061,18 +1118,24 @@ CPhysicalHashJoin::Ped(CMemoryPool *mp, CExpressionHandle &exprhdl,
 					break;
 				}
 			}
-		}else if(child_index == 0){
-            if(ulOptReq == ulHashDistributeRequests + 2){
-                //Check if inner node has an applied hint
-                tables = exprhdl.DeriveTableDescriptor(child_index+1);
-                hint = planhint->GetDistributionHint(tables);
+		}
+		else if (child_index == 0)
+		{
+			if (ulOptReq == ulHashDistributeRequests + 2)
+			{
+				//Check if inner node has an applied hint
+				tables = exprhdl.DeriveTableDescriptor(child_index + 1);
+				hint = planhint->GetDistributionHint(tables);
 
-                if (hint != nullptr && hint->GetDistributionType() != CDistributionHint::SINGLENODE) {
-                    //Cant do Singelton - Any so just pass through instead
-                    CDistributionSpec *pds = PdsPassThru(mp, exprhdl, pdsInput, child_index);
-                    return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
-                }
-            } 
+				if (hint != nullptr && hint->GetDistributionType() !=
+										   CDistributionHint::SINGLENODE)
+				{
+					//Cant do Singelton - Any so just pass through instead
+					CDistributionSpec *pds =
+						PdsPassThru(mp, exprhdl, pdsInput, child_index);
+					return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
+				}
+			}
 		}
 	}
 

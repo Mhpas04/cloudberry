@@ -126,10 +126,6 @@ CPhysicalInnerNLJoin::Ped(CMemoryPool *mp, CExpressionHandle &exprhdl,
 	COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
     CPlanHint *planhint = poctxt->GetOptimizerConfig()->GetPlanHint();
 
-
-	CDistributionSpec *pdsOuter =
-		CDrvdPropPlan::Pdpplan((*pdrgpdpCtxt)[0])->Pds();
-
 	if (planhint != nullptr)
 	{
 		CTableDescriptorHashSet *tables = exprhdl.DeriveTableDescriptor(child_index);
@@ -165,7 +161,7 @@ CPhysicalInnerNLJoin::Ped(CMemoryPool *mp, CExpressionHandle &exprhdl,
 				}
 			}
 		}else if(child_index == 0){
-            if(ulOptReq == 1 && CDistributionSpec::EdtUniversal == pdsOuter->Edt()){
+           /* if(ulOptReq == 1 && CDistributionSpec::EdtUniversal == pdsOuter->Edt()){
                 //Check if inner node has an applied hint
                 tables = exprhdl.DeriveTableDescriptor(child_index+1);
                 hint = planhint->GetDistributionHint(tables);
@@ -175,7 +171,7 @@ CPhysicalInnerNLJoin::Ped(CMemoryPool *mp, CExpressionHandle &exprhdl,
                     CDistributionSpec *pds = PdsPassThru(mp, exprhdl, pdsRequired, child_index);
                     return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
                 }
-            }
+            }*/
 		}
 	}
 
@@ -206,6 +202,8 @@ CPhysicalInnerNLJoin::Ped(CMemoryPool *mp, CExpressionHandle &exprhdl,
 	}
 
 	// compute a matching distribution based on derived distribution of outer child
+	CDistributionSpec *pdsOuter =
+		CDrvdPropPlan::Pdpplan((*pdrgpdpCtxt)[0])->Pds();
 	if (CDistributionSpec::EdtUniversal == pdsOuter->Edt())
 	{
 		// Outer child is universal, request the inner child to be non-replicated.
