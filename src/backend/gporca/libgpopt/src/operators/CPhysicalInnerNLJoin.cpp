@@ -14,6 +14,7 @@
 #include "gpos/base.h"
 
 #include "gpopt/base/CCastUtils.h"
+#include "gpopt/base/CDistributionSpecAny.h"
 #include "gpopt/base/CDistributionSpecHashed.h"
 #include "gpopt/base/CDistributionSpecNonReplicated.h"
 #include "gpopt/base/CDistributionSpecNonSingleton.h"
@@ -21,6 +22,7 @@
 #include "gpopt/base/CUtils.h"
 #include "gpopt/operators/CExpressionHandle.h"
 #include "gpopt/operators/CPredicateUtils.h"
+#include "gpopt/optimizer/COptimizerConfig.h"
 
 
 using namespace gpopt;
@@ -54,7 +56,6 @@ CPhysicalInnerNLJoin::CPhysicalInnerNLJoin(CMemoryPool *mp)
 //
 //---------------------------------------------------------------------------
 CPhysicalInnerNLJoin::~CPhysicalInnerNLJoin() = default;
-
 
 
 //---------------------------------------------------------------------------
@@ -122,6 +123,62 @@ CPhysicalInnerNLJoin::Ped(CMemoryPool *mp, CExpressionHandle &exprhdl,
 			CEnfdDistribution::EdmSatisfy);
 	}
 
+	COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
+    CPlanHint *planhint = poctxt->GetOptimizerConfig()->GetPlanHint();
+
+
+	CDistributionSpec *pdsOuter =
+		CDrvdPropPlan::Pdpplan((*pdrgpdpCtxt)[0])->Pds();
+
+	if (planhint != nullptr)
+	{
+		CTableDescriptorHashSet *tables = exprhdl.DeriveTableDescriptor(child_index);
+		CDistributionHint* hint = planhint->GetDistributionHint(tables);
+		if (hint != nullptr)
+		{
+			switch (hint->GetDistributionType())
+			{
+				case CDistributionHint::BROADCAST:
+				{
+
+						CDistributionSpec *pds = GPOS_NEW(mp) CDistributionSpecReplicated(CDistributionSpec::EdtStrictReplicated);
+						return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
+
+				}
+				case CDistributionHint::REDISTRIBUTION:
+				{
+					break;
+				}
+				case CDistributionHint::SINGLENODE:
+				{
+					CDistributionSpec *pds = GPOS_NEW(mp) CDistributionSpecSingleton(CDistributionSpecSingleton::EstSegment);
+                    return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
+				}
+                case CDistributionHint::PASSTHROUGH:
+				{
+                    CDistributionSpec *pds = GPOS_NEW(mp) CDistributionSpecAny(this->Eopid());
+					return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
+				}
+				case CDistributionHint::SENTINEL:
+				{
+					break;
+				}
+			}
+		}else if(child_index == 0){
+            if(ulOptReq == 1 && CDistributionSpec::EdtUniversal == pdsOuter->Edt()){
+                //Check if inner node has an applied hint
+                tables = exprhdl.DeriveTableDescriptor(child_index+1);
+                hint = planhint->GetDistributionHint(tables);
+
+                if (hint != nullptr && hint->GetDistributionType() != CDistributionHint::SINGLENODE) {
+                    //Cant do Singelton - Any so just pass through instead
+                    CDistributionSpec *pds = PdsPassThru(mp, exprhdl, pdsRequired, child_index);
+                    return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
+                }
+            }
+		}
+	}
+
 	if (GPOS_FTRACE(EopttraceDisableReplicateInnerNLJOuterChild) ||
 		0 == ulOptReq)
 	{
@@ -149,8 +206,6 @@ CPhysicalInnerNLJoin::Ped(CMemoryPool *mp, CExpressionHandle &exprhdl,
 	}
 
 	// compute a matching distribution based on derived distribution of outer child
-	CDistributionSpec *pdsOuter =
-		CDrvdPropPlan::Pdpplan((*pdrgpdpCtxt)[0])->Pds();
 	if (CDistributionSpec::EdtUniversal == pdsOuter->Edt())
 	{
 		// Outer child is universal, request the inner child to be non-replicated.

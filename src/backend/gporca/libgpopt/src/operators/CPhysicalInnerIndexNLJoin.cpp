@@ -19,7 +19,7 @@
 #include "gpopt/base/CDistributionSpecReplicated.h"
 #include "gpopt/operators/CExpressionHandle.h"
 #include "gpopt/operators/CPredicateUtils.h"
-
+#include "gpopt/optimizer/COptimizerConfig.h"
 
 
 using namespace gpopt;
@@ -117,6 +117,46 @@ CPhysicalInnerIndexNLJoin::Ped(CMemoryPool *mp, CExpressionHandle &exprhdl,
 
 	CEnfdDistribution::EDistributionMatching dmatch =
 		Edm(prppInput, child_index, pdrgpdpCtxt, ulDistrReq);
+
+	COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
+	CPlanHint *planhint = poctxt->GetOptimizerConfig()->GetPlanHint();
+
+	if (planhint != nullptr)
+	{
+		CTableDescriptorHashSet *tables = exprhdl.DeriveTableDescriptor(child_index);
+		CDistributionHint* hint = planhint->GetDistributionHint(tables);
+		if (hint != nullptr)
+		{
+			switch (hint->GetDistributionType())
+			{
+				case CDistributionHint::BROADCAST:
+				{
+
+					CDistributionSpec *pds = GPOS_NEW(mp) CDistributionSpecReplicated(CDistributionSpec::EdtStrictReplicated);
+					return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
+
+				}
+				case CDistributionHint::REDISTRIBUTION:
+				{
+					break;
+				}
+				case CDistributionHint::SINGLENODE:
+				{
+					CDistributionSpec *pds = GPOS_NEW(mp) CDistributionSpecSingleton(CDistributionSpecSingleton::EstSegment);
+					return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
+				}
+				case CDistributionHint::PASSTHROUGH:
+				{
+					CDistributionSpec *pds = GPOS_NEW(mp) CDistributionSpecAny(this->Eopid());
+					return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
+				}
+				case CDistributionHint::SENTINEL:
+				{
+					break;
+				}
+			}
+		}
+	}
 
 	if (1 == child_index)
 	{

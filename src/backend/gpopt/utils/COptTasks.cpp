@@ -843,6 +843,7 @@ COptTasks::GetPlanHints(CMemoryPool *mp, Query *query)
 		}
         case HINT_KEYWORD_PASSTHROUGH:{
             type = CDistributionHint::DistributionType::PASSTHROUGH;
+			break;
         }
 		default:
 		{

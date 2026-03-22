@@ -1053,7 +1053,7 @@ CPhysicalHashJoin::Ped(CMemoryPool *mp, CExpressionHandle &exprhdl,
 				}
                 case CDistributionHint::PASSTHROUGH:
 				{
-                    CDistributionSpec *pds = PdsPassThru(mp, exprhdl, pdsInput, child_index);
+                    CDistributionSpec *pds = GPOS_NEW(mp) CDistributionSpecAny(this->Eopid());
 					return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
 				}
 				case CDistributionHint::SENTINEL:
