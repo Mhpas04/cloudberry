@@ -17,7 +17,6 @@ Checks: |
 
 WarningsAsErrors: '*'
 HeaderFilterRegex: 'gpdbcost|gpopt|gpos|naucrates'
-AnalyzeTemporaryDtors: false
 FormatStyle:     file
 User:            pivotal
 CheckOptions:

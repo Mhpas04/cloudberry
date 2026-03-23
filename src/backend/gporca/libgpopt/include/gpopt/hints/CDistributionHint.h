@@ -28,8 +28,10 @@ private:
 	DistributionType m_type{SENTINEL};
 	// sorted list of alias names.
 	StringPtrArray *m_aliases{nullptr};
+    // List of Column names. Used for columns to repartition on
+    StringPtrArray *m_columns{nullptr};
 public:
-	explicit CDistributionHint(CMemoryPool *mp, DistributionType type, StringPtrArray *aliases) : m_mp(mp), m_type(type), m_aliases(aliases) {
+	explicit CDistributionHint(CMemoryPool *mp, DistributionType type, StringPtrArray *aliases, StringPtrArray* columns) : m_mp(mp), m_type(type), m_aliases(aliases), m_columns(columns) {
 		m_aliases->Sort(CWStringBase::Compare);
 	}
 
@@ -43,6 +45,8 @@ public:
 	DistributionType GetDistributionType() const;
 
 	const StringPtrArray *GetAliasNames() const;
+
+    const StringPtrArray *GetColumnNames() const;
 
 	void Serialize(CXMLSerializer *xml_serializer);
 };

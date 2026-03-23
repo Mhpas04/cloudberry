@@ -2407,7 +2407,7 @@ DistributionHintParse(DistributionMethodHint *hint, HintState *hstate, Query *pa
 	list_free(name_list);
 
 	/* Sort hints in alphabetical order of relation names. */
-	qsort(hint->relnames, hint->nrels, sizeof(char *), RelnameCmp);
+	//qsort(hint->relnames, hint->nrels, sizeof(char *), RelnameCmp);
 
 	return str;
 }

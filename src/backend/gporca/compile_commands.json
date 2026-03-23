@@ -1,1 +1,40 @@
-[]
+[
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-std=c++14",
+      "-Werror",
+      "-Wextra",
+      "-Wpedantic",
+      "-fno-omit-frame-pointer",
+      "-Wall",
+      "-Wpointer-arith",
+      "-Wendif-labels",
+      "-Wmissing-format-attribute",
+      "-Wimplicit-fallthrough=3",
+      "-Wcast-function-type",
+      "-Wformat-security",
+      "-fno-strict-aliasing",
+      "-fwrapv",
+      "-g",
+      "-O0",
+      "-g3",
+      "-ggdb",
+      "-fno-omit-frame-pointer",
+      "-fPIC",
+      "-I../../../../../../src/backend/gporca/libgpdbcost/include",
+      "-I../../../../../../src/backend/gporca/libnaucrates/include",
+      "-I../../../../../../src/backend/gporca/libgpopt/include",
+      "-I../../../../../../src/backend/gporca/libgpos/include",
+      "-I../../../../../../src/include",
+      "-D_GNU_SOURCE",
+      "-c",
+      "-o",
+      "CPhysicalHashJoin.o",
+      "CPhysicalHashJoin.cpp"
+    ],
+    "directory": "/home/gpadmin/cloudberry/src/backend/gporca/libgpopt/src/operators",
+    "file": "/home/gpadmin/cloudberry/src/backend/gporca/libgpopt/src/operators/CPhysicalHashJoin.cpp",
+    "output": "/home/gpadmin/cloudberry/src/backend/gporca/libgpopt/src/operators/CPhysicalHashJoin.o"
+  }
+]

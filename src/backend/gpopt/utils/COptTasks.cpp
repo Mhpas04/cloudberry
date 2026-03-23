@@ -14,7 +14,9 @@
 //---------------------------------------------------------------------------
 
 #include "gpopt/utils/COptTasks.h"
+
 #include "gpopt/hints/CDistributionHint.h"
+#include "gpopt/translate/CCTEListEntry.h"
 
 extern "C" {
 #include "cdb/cdbvars.h"
@@ -176,9 +178,11 @@ SOptContext::CloneErrorMsg(MemoryContext context, BOOL *clone_failed) const
 	GPOS_TRY
 	{
 #ifdef FAULT_INJECTOR
-		if (gpdb::InjectFaultInOptTasks("opt_clone_error_msg") == FaultInjectorTypeSkip)
+		if (gpdb::InjectFaultInOptTasks("opt_clone_error_msg") ==
+			FaultInjectorTypeSkip)
 		{
-			GpdbEreport(ERRCODE_INTERNAL_ERROR, ERROR, "Injected error", nullptr);
+			GpdbEreport(ERRCODE_INTERNAL_ERROR, ERROR, "Injected error",
+						nullptr);
 		}
 #endif
 		error_msg = gpdb::MemCtxtStrdup(context, m_error_msg);
@@ -425,7 +429,8 @@ COptTasks::CreateOptimizerConfig(CMemoryPool *mp, ICostModel *cost_model,
 				  push_group_by_below_setop_threshold, xform_bind_threshold,
 				  skew_factor),
 		plan_hints,
-		GPOS_NEW(mp) CWindowOids(mp, OID(F_ROW_NUMBER), OID(F_RANK_), OID(F_DENSE_RANK_)));
+		GPOS_NEW(mp) CWindowOids(mp, OID(F_ROW_NUMBER), OID(F_RANK_),
+								 OID(F_DENSE_RANK_)));
 }
 
 //---------------------------------------------------------------------------
@@ -465,18 +470,17 @@ COptTasks::SetCostModelParams(ICostModel *cost_model)
 			cost_param->GetLowerBoundVal() * optimizer_sort_factor,
 			cost_param->GetUpperBoundVal() * optimizer_sort_factor);
 	}
-	if (optimizer_spilling_mem_threshold > 0.0) {
+	if (optimizer_spilling_mem_threshold > 0.0)
+	{
 		ICostModelParams::SCostParam *cost_param =
-				cost_model->GetCostModelParams()->PcpLookup(
-					CCostModelParamsGPDB::EcpHJSpillingMemThreshold);
+			cost_model->GetCostModelParams()->PcpLookup(
+				CCostModelParamsGPDB::EcpHJSpillingMemThreshold);
 
-			CDouble spill_mem_threshold(optimizer_spilling_mem_threshold);
-			cost_model->GetCostModelParams()->SetParam(
-				cost_param->Id(), spill_mem_threshold,
-				spill_mem_threshold - 0.0,
-				spill_mem_threshold + 0.0);
+		CDouble spill_mem_threshold(optimizer_spilling_mem_threshold);
+		cost_model->GetCostModelParams()->SetParam(
+			cost_param->Id(), spill_mem_threshold, spill_mem_threshold - 0.0,
+			spill_mem_threshold + 0.0);
 	}
-
 }
 
 
@@ -807,57 +811,81 @@ COptTasks::GetPlanHints(CMemoryPool *mp, Query *query)
 		}
 	}
 	for (int hint_index = 0;
-		 hint_index < hintstate->num_hints[HINT_TYPE_DISTRIBUTION_METHOD]; hint_index++) {
-        GPOS_TRACE(GPOS_WSZ_LIT("Starting Distribution Hint Parsing..."));    
-        
+		 hint_index < hintstate->num_hints[HINT_TYPE_DISTRIBUTION_METHOD];
+		 hint_index++)
+	{
+		GPOS_TRACE(GPOS_WSZ_LIT("Starting Distribution Hint Parsing..."));
+
 		DistributionMethodHint *distribution_hint =
-			(DistributionMethodHint *) hintstate->distribution_hints[hint_index];
+			(DistributionMethodHint *)
+				hintstate->distribution_hints[hint_index];
 		StringPtrArray *aliasnames = GPOS_NEW(mp) StringPtrArray(mp);
+		StringPtrArray *columnames = GPOS_NEW(mp) StringPtrArray(mp);
+		bool onRead = false;
+
 		for (int relname_index = 0; relname_index < distribution_hint->nrels;
 			 relname_index++)
 		{
+			if (onRead)
+			{
+				columnames->Append(GPOS_NEW(mp) CWStringConst(
+					mp, distribution_hint->relnames[relname_index]));
+				continue;
+			}
+
+			if (StrEqual(distribution_hint->relnames[relname_index], "on"))
+			{
+				onRead = true;
+				continue;
+			}
+
 			aliasnames->Append(GPOS_NEW(mp) CWStringConst(
 				mp, distribution_hint->relnames[relname_index]));
 		}
 
-        GPOS_TRACE(GPOS_WSZ_LIT("Finished alias parsing"));   
+		GPOS_TRACE(GPOS_WSZ_LIT("Finished alias parsing"));
 
 
-		CDistributionHint::DistributionType type = CDistributionHint::DistributionType::SENTINEL;
+		CDistributionHint::DistributionType type =
+			CDistributionHint::DistributionType::SENTINEL;
 		switch (distribution_hint->base.hint_keyword)
 		{
-		case HINT_KEYWORD_BROADCAST:
-		{
-			type = CDistributionHint::DistributionType::BROADCAST;
-			break;
-		}
-		case HINT_KEYWORD_REDISTRIBUTE:
-		{
-			type = CDistributionHint::DistributionType::REDISTRIBUTION;
-			break;
-		}
-		case HINT_KEYWORD_SINGLENODE:
-		{
-			type = CDistributionHint::DistributionType::SINGLENODE;
-			break;
-		}
-        case HINT_KEYWORD_PASSTHROUGH:{
-            type = CDistributionHint::DistributionType::PASSTHROUGH;
-			break;
-        }
-		default:
-		{
-			CWStringDynamic *error_message = GPOS_NEW(mp) CWStringDynamic(
-				mp, GPOS_WSZ_LIT("Unsupported plan hint: "));
-			error_message->AppendFormat(GPOS_WSZ_LIT("%s"), distribution_hint->base.keyword);
+			case HINT_KEYWORD_BROADCAST:
+			{
+				type = CDistributionHint::DistributionType::BROADCAST;
+				break;
+			}
+			case HINT_KEYWORD_REDISTRIBUTE:
+			{
+				type = CDistributionHint::DistributionType::REDISTRIBUTION;
+				break;
+			}
+			case HINT_KEYWORD_SINGLENODE:
+			{
+				type = CDistributionHint::DistributionType::SINGLENODE;
+				break;
+			}
+			case HINT_KEYWORD_PASSTHROUGH:
+			{
+				type = CDistributionHint::DistributionType::PASSTHROUGH;
+				break;
+			}
+			default:
+			{
+				CWStringDynamic *error_message = GPOS_NEW(mp) CWStringDynamic(
+					mp, GPOS_WSZ_LIT("Unsupported plan hint: "));
+				error_message->AppendFormat(GPOS_WSZ_LIT("%s"),
+											distribution_hint->base.keyword);
 
-			GPOS_RAISE(gpopt::ExmaGPOPT, gpopt::ExmiUnsupportedOp,
-					   error_message->GetBuffer());
-			break;
+				GPOS_RAISE(gpopt::ExmaGPOPT, gpopt::ExmiUnsupportedOp,
+						   error_message->GetBuffer());
+				break;
+			}
 		}
-		}
-        GPOS_TRACE(GPOS_WSZ_LIT("Selected Type... Done Parsing"));   
-		CDistributionHint *hint = GPOS_NEW(mp) CDistributionHint(mp, type, aliasnames);
+		GPOS_TRACE(GPOS_WSZ_LIT("Selected Type... Done Parsing"));
+		CDistributionHint *hint = GPOS_NEW(mp) CDistributionHint(
+			mp, type, aliasnames, columnames->Size() ? columnames : nullptr);
+
 		plan_hints->AddHint(hint);
 	}
 
@@ -1232,7 +1260,8 @@ COptTasks::Optimize(Query *query)
 //
 //---------------------------------------------------------------------------
 PlannedStmt *
-COptTasks::GPOPTOptimizedPlan(Query *query, SOptContext *gpopt_context, OptimizerOptions *opts)
+COptTasks::GPOPTOptimizedPlan(Query *query, SOptContext *gpopt_context,
+							  OptimizerOptions *opts)
 {
 	Assert(query);
 	Assert(gpopt_context);

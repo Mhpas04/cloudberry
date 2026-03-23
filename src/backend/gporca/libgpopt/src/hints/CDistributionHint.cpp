@@ -25,7 +25,10 @@ const StringPtrArray* CDistributionHint::GetAliasNames() const
 	return m_aliases;
 }
 
-
+const StringPtrArray* CDistributionHint::GetColumnNames() const
+{
+	return m_columns;
+}
 //---------------------------------------------------------------------------
 //	@function:
 //		CJoinHint::Serialize

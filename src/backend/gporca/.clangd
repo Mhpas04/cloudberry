@@ -1,0 +1,8 @@
+CompileFlags:
+  Add: [
+    "-I/home/gpadmin/cloudberry/src/backend/gporca/libgpos/include",
+    "-I/home/gpadmin/cloudberry/src/backend/gporca/libgpopt/include",
+    "-I/home/gpadmin/cloudberry/src/backend/gporca/libnaucrates/include",
+    "-I/home/gpadmin/cloudberry/src/backend/gporca/libgpdbcost/include",
+    "-I/home/gpadmin/cloudberry/src/include"
+  ]

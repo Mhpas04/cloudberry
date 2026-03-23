@@ -986,6 +986,19 @@ CPhysicalHashJoin::PdsRequired(
 	return nullptr;
 }
 
+static CColRef* GetColRefByName(const CColRefSet *pcrs, const CWStringBase *pstrName) 
+{
+    CColRefSetIter crsi(*pcrs);
+    while (crsi.Advance()) 
+    {
+        if (crsi.Pcr()->Name().Pstr()->Equals(pstrName)) 
+        {
+            return crsi.Pcr(); 
+        }
+    }
+    return nullptr; 
+}
+
 CEnfdDistribution *
 CPhysicalHashJoin::Ped(CMemoryPool *mp, CExpressionHandle &exprhdl,
 					   CReqdPropPlan *prppInput, ULONG child_index,
@@ -1043,7 +1056,28 @@ CPhysicalHashJoin::Ped(CMemoryPool *mp, CExpressionHandle &exprhdl,
 				}
 				case CDistributionHint::REDISTRIBUTION:
 				{
-					//Yeah just get it to work at this point. We clamp the value here so we dont go out of bounds when choosing the redistribution method to cost
+                    const StringPtrArray* columns = hint->GetColumnNames();
+					if(columns != nullptr){
+                        const auto* outputCols = exprhdl.DeriveOutputColumns(child_index);
+                        CExpressionArray *pdrgpexpr = GPOS_NEW(mp) CExpressionArray(mp);
+                        for(ULONG ul = 0; ul < columns->Size(); ++ul){
+                            CColRef* pcr = GetColRefByName(outputCols, (*columns)[ul]);
+                            CExpression *pexprHashKey = GPOS_NEW(mp) CExpression(
+                                mp, 
+                                GPOS_NEW(mp) CScalarIdent(mp, pcr)
+                            );
+                            pdrgpexpr->Append(pexprHashKey);
+                        }
+
+                        CDistributionSpecHashed *pds = GPOS_NEW(mp) CDistributionSpecHashed(
+                            pdrgpexpr, 
+                            true
+                        );
+
+                        return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
+                    }
+                    
+                    //Yeah just get it to work at this point. We clamp the value here so we dont go out of bounds when choosing the redistribution method to cost
 					ulOptReq = std::min(ulOptReq, ulHashDistributeRequests - 1);
 					CDistributionSpec *pds = PdsRequiredRedistribute(
 						mp, exprhdl, pdsInput, child_index, pdrgpdpCtxt,
