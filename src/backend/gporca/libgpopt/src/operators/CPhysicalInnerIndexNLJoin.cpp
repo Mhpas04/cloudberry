@@ -19,6 +19,7 @@
 #include "gpopt/base/CDistributionSpecReplicated.h"
 #include "gpopt/operators/CExpressionHandle.h"
 #include "gpopt/operators/CPredicateUtils.h"
+#include "gpopt/base/CColRefSetIter.h"
 #include "gpopt/optimizer/COptimizerConfig.h"
 
 
@@ -108,6 +109,19 @@ CPhysicalInnerIndexNLJoin::PdsRequired(CMemoryPool *mp GPOS_UNUSED,
 	return nullptr;
 }
 
+static CColRef* GetColRefByName(const CColRefSet *pcrs, const CWStringBase *pstrName)
+{
+    CColRefSetIter crsi(*pcrs);
+    while (crsi.Advance())
+    {
+        if (crsi.Pcr()->Name().Pstr()->Equals(pstrName))
+        {
+            return crsi.Pcr();
+        }
+    }
+    return nullptr;
+}
+
 CEnfdDistribution *
 CPhysicalInnerIndexNLJoin::Ped(CMemoryPool *mp, CExpressionHandle &exprhdl,
 							   CReqdPropPlan *prppInput, ULONG child_index,
@@ -138,7 +152,27 @@ CPhysicalInnerIndexNLJoin::Ped(CMemoryPool *mp, CExpressionHandle &exprhdl,
 				}
 				case CDistributionHint::REDISTRIBUTION:
 				{
-					break;
+				    const StringPtrArray* columns = hint->GetColumnNames();
+					if(columns != nullptr){
+						const auto* outputCols = exprhdl.DeriveOutputColumns(child_index);
+                        CExpressionArray *pdrgpexpr = GPOS_NEW(mp) CExpressionArray(mp);
+                        for(ULONG ul = 0; ul < columns->Size(); ++ul){
+                            CColRef* pcr = GetColRefByName(outputCols, (*columns)[ul]);
+                            CExpression *pexprHashKey = GPOS_NEW(mp) CExpression(
+                                mp,
+                                GPOS_NEW(mp) CScalarIdent(mp, pcr)
+                            );
+                            pdrgpexpr->Append(pexprHashKey);
+                        }
+
+                        CDistributionSpecHashed *pds = GPOS_NEW(mp) CDistributionSpecHashed(
+                            pdrgpexpr,
+                            true
+                        );
+
+                        return GPOS_NEW(mp) CEnfdDistribution(pds, dmatch);
+					}
+					return GPOS_NEW(mp) CEnfdDistribution(nullptr, dmatch);
 				}
 				case CDistributionHint::SINGLENODE:
 				{

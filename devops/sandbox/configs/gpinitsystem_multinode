@@ -72,8 +72,7 @@ PORT_BASE=40000
 # may want to create these directories on the segment hosts before running
 # gpinitsystem and chown them to the appropriate user.
 
-declare -a DATA_DIRECTORY=(/data0/database/primary \
-                           /data0/database/primary)
+declare -a DATA_DIRECTORY=(/data0/database/primary)
 
 # The OS-configured hostname of the Apache Cloudberry coordinator instance.
 
